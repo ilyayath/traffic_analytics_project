@@ -1,0 +1,341 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Traffic Analytics{% endblock %}</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+:root {
+  --bg:           #fafaf9;
+  --surface:     #ffffff;
+  --surface-2:   #f5f5f4;
+  --ink:         #1c1917;
+  --ink-2:       #44403c;
+  --muted:       #78716c;
+  --line:        #e7e5e4;
+  --line-strong: #d6d3d1;
+
+  --accent:      #1e3a5f;
+  --accent-2:    #2c5078;
+  --positive:    #166534;
+  --warning:     #a16207;
+  --danger:      #991b1b;
+
+  --c1: #1e3a5f;
+  --c2: #4b6584;
+  --c3: #7d8ca6;
+  --c4: #b8a06f;
+  --c5: #a16207;
+  --c6: #991b1b;
+  --c7: #166534;
+  --c8: #57534e;
+
+  --r-status-2xx: #166534;
+  --r-status-3xx: #4b6584;
+  --r-status-4xx: #a16207;
+  --r-status-5xx: #991b1b;
+
+  --font-display: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-body:    'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:    'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; }
+a:hover { border-bottom-color: var(--accent); }
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: var(--ink);
+}
+h1 { font-size: 28px; line-height: 1.15; }
+h2 { font-size: 20px; line-height: 1.2; }
+h3 { font-size: 16px; font-weight: 600; }
+h4 { font-size: 13px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+
+.num, .tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.shell { max-width: 1320px; margin: 0 auto; padding: 0 32px; }
+
+.topbar { border-bottom: 1px solid var(--line); background: var(--surface); }
+.topbar-inner { display: flex; align-items: center; gap: 32px; height: 56px; }
+.brand {
+  font-family: var(--font-display); font-weight: 600; font-size: 18px;
+  letter-spacing: -0.01em; color: var(--ink); border: none;
+}
+.brand-mark {
+  display: inline-block; width: 8px; height: 8px; background: var(--accent);
+  margin-right: 10px; vertical-align: middle;
+}
+.nav { display: flex; gap: 24px; }
+.nav a { color: var(--ink-2); font-size: 13px; font-weight: 500; border: none; padding: 4px 0; }
+.nav a.active { color: var(--ink); border-bottom: 2px solid var(--accent); }
+.nav a:hover { color: var(--ink); border: none; border-bottom: 2px solid var(--accent); }
+
+main.shell { padding-top: 32px; padding-bottom: 64px; }
+
+.page-head {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px; margin-bottom: 24px;
+}
+.page-head .meta { color: var(--muted); font-size: 13px; }
+.page-head .actions { display: flex; gap: 8px; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-body); font-size: 13px; font-weight: 500;
+  padding: 8px 14px; border: 1px solid var(--line-strong);
+  background: var(--surface); color: var(--ink); cursor: pointer;
+  border-radius: 2px; transition: all .12s;
+}
+.btn:hover { border-color: var(--ink); }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--ink-2); padding: 6px 10px; }
+.btn-ghost:hover { background: var(--surface-2); border-color: transparent; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 2px; margin-bottom: 16px; }
+.panel-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 18px; border-bottom: 1px solid var(--line);
+}
+.panel-head h3 { font-family: var(--font-display); }
+.panel-body { padding: 18px; }
+.panel-body.flush { padding: 0; }
+
+.kpi-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--line); border: 1px solid var(--line);
+  border-radius: 2px; margin-bottom: 24px;
+}
+.kpi { background: var(--surface); padding: 18px 20px; }
+.kpi-label {
+  font-size: 11px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px;
+}
+.kpi-value {
+  font-family: var(--font-display); font-size: 32px; font-weight: 600;
+  line-height: 1; font-variant-numeric: tabular-nums; color: var(--ink);
+}
+.kpi-value .unit {
+  font-size: 14px; font-weight: 400; color: var(--muted);
+  margin-left: 4px; font-family: var(--font-body);
+}
+
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th, .tbl td { padding: 10px 14px; border-bottom: 1px solid var(--line); text-align: left; }
+.tbl th {
+  font-weight: 500; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted); background: var(--surface-2);
+  border-bottom: 1px solid var(--line-strong);
+}
+.tbl tbody tr:hover { background: var(--surface-2); }
+.tbl td.num { font-family: var(--font-mono); text-align: right; }
+
+.form-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label {
+  font-size: 11px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted);
+}
+.field input, .field select {
+  font-family: var(--font-body); font-size: 13px;
+  padding: 7px 10px; border: 1px solid var(--line-strong);
+  background: var(--surface); border-radius: 2px; min-width: 140px;
+  color: var(--ink);
+}
+.field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
+.field input[type=file] { padding: 6px; }
+
+.badge {
+  display: inline-block; font-size: 11px; font-weight: 500;
+  padding: 2px 8px; border-radius: 2px; font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+.badge-ok    { background: #dcfce7; color: #166534; }
+.badge-warn  { background: #fef3c7; color: #a16207; }
+.badge-err   { background: #fee2e2; color: #991b1b; }
+.badge-info  { background: #e0e7ff; color: #1e3a5f; }
+.badge-mute  { background: var(--surface-2); color: var(--muted); }
+
+.chart-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; margin-bottom: 16px; }
+.chart-grid .span-6 { grid-column: span 6; }
+.chart-grid .span-4 { grid-column: span 4; }
+.chart-grid .span-8 { grid-column: span 8; }
+.chart-grid .span-12 { grid-column: span 12; }
+@media (max-width: 1024px) {
+  .chart-grid .span-6, .chart-grid .span-4, .chart-grid .span-8 { grid-column: span 12; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.chart-box { position: relative; height: 280px; }
+.chart-box.tall { height: 340px; }
+.chart-box.short { height: 220px; }
+
+.heatmap { display: grid; grid-template-columns: 32px repeat(24, 1fr); gap: 2px; font-size: 10px; font-family: var(--font-mono); }
+.heatmap .cell {
+  height: 24px; background: var(--surface-2);
+  display: flex; align-items: center; justify-content: center;
+  color: transparent; transition: background .1s; cursor: default;
+}
+.heatmap .cell:hover { outline: 1px solid var(--ink); color: var(--ink); }
+.heatmap .h-label, .heatmap .w-label {
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); height: 24px;
+}
+
+.alert {
+  padding: 12px 16px; border: 1px solid var(--line); border-left: 3px solid var(--accent);
+  background: var(--surface); margin-bottom: 16px; font-size: 13px;
+}
+.alert.alert-success { border-left-color: var(--positive); }
+.alert.alert-error { border-left-color: var(--danger); }
+
+.section { border: 1px solid var(--line); margin-bottom: 12px; background: var(--surface); }
+.section-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 18px; border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.section-head h3 { font-family: var(--font-display); font-size: 15px; }
+.section-type { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 500; }
+.section-body { padding: 16px 18px; }
+.section .section { margin: 12px 0 0 24px; border-left: 2px solid var(--line); border-top: 1px solid var(--line); }
+
+.metric-leaf { display: flex; align-items: baseline; gap: 8px; }
+.metric-leaf .mv { font-family: var(--font-display); font-size: 26px; font-weight: 600; }
+.metric-leaf .mu { font-size: 12px; color: var(--muted); }
+
+.gap-sm { margin-bottom: 8px; }
+.gap-md { margin-bottom: 16px; }
+.gap-lg { margin-bottom: 32px; }
+.muted { color: var(--muted); }
+.section-title-rule {
+  font-family: var(--font-display); font-weight: 600; font-size: 18px;
+  border-bottom: 2px solid var(--ink); padding-bottom: 4px; margin: 24px 0 12px;
+  display: inline-block;
+}
+</style>
+
+<script>
+// === Ініціалізація палітри Chart.js ===
+// Викликається на DOMContentLoaded — на цей момент <style> вище вже
+// опрацьовано і CSS-змінні доступні через getComputedStyle.
+// Інлайн-скрипти у секціях звіту також чекають цієї події через 'charts-ready'.
+(function(){
+  function readPalette() {
+    var CSS = getComputedStyle(document.documentElement);
+    window.css = function(name) { return CSS.getPropertyValue(name).trim(); };
+
+    Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
+    Chart.defaults.font.size = 11;
+    Chart.defaults.color = css('--ink-2') || '#44403c';
+    Chart.defaults.borderColor = css('--line') || '#e7e5e4';
+    Chart.defaults.elements.line.borderWidth = 1.5;
+    Chart.defaults.elements.line.tension = 0.25;
+    Chart.defaults.elements.point.radius = 0;
+    Chart.defaults.elements.point.hoverRadius = 4;
+    Chart.defaults.elements.bar.borderWidth = 0;
+    Chart.defaults.elements.arc.borderWidth = 1;
+    Chart.defaults.elements.arc.borderColor = '#fff';
+    Chart.defaults.plugins.legend.labels.boxWidth = 10;
+    Chart.defaults.plugins.legend.labels.boxHeight = 10;
+    Chart.defaults.plugins.tooltip.backgroundColor = css('--ink') || '#1c1917';
+    Chart.defaults.plugins.tooltip.titleFont = { family: "'IBM Plex Mono'", size: 11 };
+    Chart.defaults.plugins.tooltip.bodyFont = { family: "'IBM Plex Mono'", size: 11 };
+    Chart.defaults.plugins.tooltip.padding = 10;
+    Chart.defaults.plugins.tooltip.cornerRadius = 2;
+    Chart.defaults.plugins.tooltip.displayColors = false;
+
+    var fallback = ['#1e3a5f','#4b6584','#7d8ca6','#b8a06f','#a16207','#991b1b','#166534','#57534e'];
+    window.PALETTE = ['--c1','--c2','--c3','--c4','--c5','--c6','--c7','--c8'].map(function(v, i){
+      return css(v) || fallback[i];
+    });
+    window.STATUS_COLORS = {
+      '2xx': css('--r-status-2xx') || '#166534',
+      '3xx': css('--r-status-3xx') || '#4b6584',
+      '4xx': css('--r-status-4xx') || '#a16207',
+      '5xx': css('--r-status-5xx') || '#991b1b',
+    };
+
+    window.__chartsReady = true;
+    document.dispatchEvent(new Event('charts-ready'));
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', readPalette);
+  } else {
+    readPalette();
+  }
+})();
+
+// Хелпер для секцій звіту: запускає колбек коли палітра готова
+window.whenChartsReady = function(cb) {
+  if (window.__chartsReady) cb();
+  else document.addEventListener('charts-ready', cb, { once: true });
+};
+</script>
+
+</head>
+<body>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <a class="brand" href="{% url 'analytics:dashboard' %}">
+      <span class="brand-mark"></span>Traffic Analytics
+    </a>
+    <nav class="nav">
+      {% if user.is_authenticated %}
+      <a href="{% url 'analytics:dashboard' %}">Огляд</a>
+      <a href="{% url 'analytics:logfile_list' %}">Файли</a>
+      <a href="{% url 'analytics:upload' %}">Завантажити</a>
+      <a href="{% url 'analytics:notification_list' %}">Сповіщення</a>
+      <span style="color:var(--muted); font-size:12px; padding:4px 0;">{{ user.username }}</span>
+      <a href="{% url 'accounts:logout' %}">Вийти</a>
+      {% else %}
+      <a href="{% url 'accounts:login' %}">Увійти</a>
+      <a href="{% url 'accounts:register' %}">Реєстрація</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+
+<main class="shell">
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

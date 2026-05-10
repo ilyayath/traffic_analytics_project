@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-head">
+  <div><h1>Вхід</h1></div>
+</div>
+
+<div class="panel" style="max-width:420px;">
+  <div class="panel-body">
+    <form method="post" style="display:flex; flex-direction:column; gap:12px;">
+      {% csrf_token %}
+      <div class="field">
+        <label>Ім'я користувача</label>
+        <input type="text" name="username" required autofocus>
+      </div>
+      <div class="field">
+        <label>Пароль</label>
+        <input type="password" name="password" required>
+      </div>
+      {% if form.errors %}
+        <div class="alert alert-error" style="margin:0;">Невірне ім'я користувача або пароль.</div>
+      {% endif %}
+      <button type="submit" class="btn btn-primary">Увійти</button>
+    </form>
+    <div style="margin-top:16px; font-size:13px;" class="muted">
+      Немає акаунту? <a href="{% url 'accounts:register' %}">Зареєструватись</a>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

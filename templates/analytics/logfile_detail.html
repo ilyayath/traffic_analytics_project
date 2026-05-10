@@ -1,0 +1,536 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>{{ log_file.name }}</h1>
+    <div class="meta">
+      {% if log_file.status == 'done' %}<span class="badge badge-ok">{{ log_file.get_status_display }}</span>
+      {% else %}<span class="badge badge-mute">{{ log_file.get_status_display }}</span>{% endif %}
+      &nbsp;&nbsp; <span class="num">{{ log_file.parsed_lines }} / {{ log_file.total_lines }}</span> рядків ·
+      завантажено {{ log_file.uploaded_at|date:"d M Y, H:i" }}
+    </div>
+  </div>
+  <div class="actions">
+    <a href="{% url 'analytics:export_excel' log_file.pk %}" class="btn">Excel ↓</a>
+    <button class="btn" id="ai-btn" onclick="runAiAnalysis()">AI-аналіз</button>
+    <form method="post" action="{% url 'analytics:build_report' log_file.pk %}" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary">Згенерувати звіт</button>
+    </form>
+  </div>
+</div>
+
+<!-- AI Analysis panel -->
+<div class="panel" id="ai-panel" style="display:none;">
+  <div class="panel-head">
+    <h3>AI-аналіз</h3>
+    <span class="muted" style="font-size:12px;">Anthropic Claude API</span>
+  </div>
+  <div class="panel-body">
+    <div id="ai-result" style="font-size:14px; line-height:1.6; white-space:pre-wrap;"></div>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<div class="panel">
+  <div class="panel-body">
+    <form id="filters" class="form-row">
+      <div class="field">
+        <label>Статус-код</label>
+        <select name="status_class">
+          <option value="all">Усі</option>
+          <option value="2xx">2xx · успіх</option>
+          <option value="3xx">3xx · редирект</option>
+          <option value="4xx">4xx · клієнт</option>
+          <option value="5xx">5xx · сервер</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>HTTP-метод</label>
+        <select name="method">
+          <option value="all">Усі</option>
+          <option value="GET">GET</option>
+          <option value="POST">POST</option>
+          <option value="PUT">PUT</option>
+          <option value="DELETE">DELETE</option>
+          <option value="PATCH">PATCH</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>URL містить</label>
+        <input type="text" name="path_contains" placeholder="напр. /api/">
+      </div>
+      <div class="field">
+        <label>Крок часу</label>
+        <select name="freq">
+          <option value="1min">1 хвилина</option>
+          <option value="5min">5 хвилин</option>
+          <option value="1h" selected>1 година</option>
+          <option value="1D">1 день</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button type="submit" class="btn btn-primary">Застосувати</button>
+        <button type="button" class="btn btn-ghost" id="reset-filters">Скинути</button>
+      </div>
+      <div style="margin-left:auto; color:var(--muted); font-size:12px;" id="filter-status"></div>
+    </form>
+  </div>
+</div>
+
+<!-- KPI -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-label">Запитів</div>
+    <div class="kpi-value num">{{ overview.total_requests }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Унікальних IP</div>
+    <div class="kpi-value num">{{ overview.unique_visitors }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Сумарний трафік</div>
+    <div class="kpi-value num">{{ overview.total_traffic }}<span class="unit">B</span></div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Доля 5xx</div>
+    <div class="kpi-value num">{{ overview.error_rate|floatformat:3 }}</div>
+  </div>
+</div>
+
+<!-- ============ ROW 1: Status timeseries (full width) ============ -->
+<h2 class="section-title-rule">Часові ряди</h2>
+<div class="chart-grid">
+  <div class="span-12">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Запити в часі за класом статусу</h3>
+        <span class="muted" style="font-size:12px;">Stacked area · змінюється від крок-часу і фільтрів</span>
+      </div>
+      <div class="panel-body"><div class="chart-box tall"><canvas id="ch-status-time"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="span-8">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Rolling-аномалії (5xx)</h3>
+        <span class="muted" style="font-size:12px;">Ковзне вікно · pandas</span>
+      </div>
+      <div class="panel-body">
+        <div class="form-row gap-md" style="gap:8px;">
+          <div class="field">
+            <label>Вікно</label>
+            <select id="anomaly-window">
+              <option value="5min">5 хв</option>
+              <option value="10min" selected>10 хв</option>
+              <option value="30min">30 хв</option>
+              <option value="1h">1 година</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Поріг</label>
+            <select id="anomaly-threshold">
+              <option value="0.05">5%</option>
+              <option value="0.1" selected>10%</option>
+              <option value="0.2">20%</option>
+              <option value="0.5">50%</option>
+            </select>
+          </div>
+          <div class="field" style="margin-left:auto;">
+            <label>Сплесків</label>
+            <div class="num" id="anomaly-count" style="font-size:18px; font-weight:600; padding-top:7px;">—</div>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="ch-anomalies"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="span-4">
+    <div class="panel" style="height:100%;">
+      <div class="panel-head"><h3>Розподіл статусу</h3></div>
+      <div class="panel-body"><div class="chart-box short"><canvas id="ch-status-pie"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ROW 2: Aggregations with selectable group_by ============ -->
+<h2 class="section-title-rule">Вибіркова агрегація</h2>
+<div class="chart-grid">
+  <div class="span-8">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Розподіл за обраним полем</h3>
+        <select id="group-by" class="num" style="font-family:var(--font-body); font-size:12px; padding:5px 8px; border:1px solid var(--line-strong); background:#fff;">
+          <option value="method">за HTTP-методом</option>
+          <option value="status_class">за класом статусу</option>
+          <option value="browser" selected>за браузером</option>
+          <option value="os_family">за ОС</option>
+          <option value="device_type">за типом пристрою</option>
+          <option value="ip_address">за IP (топ-10)</option>
+          <option value="path">за URL (топ-10)</option>
+        </select>
+      </div>
+      <div class="panel-body"><div class="chart-box"><canvas id="ch-aggregate"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="span-4">
+    <div class="panel">
+      <div class="panel-head"><h3>Розмір відповіді</h3></div>
+      <div class="panel-body"><div class="chart-box"><canvas id="ch-histogram"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ROW 3: Heatmap + Top IPs ============ -->
+<div class="chart-grid">
+  <div class="span-8">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Активність: день тижня × година</h3>
+        <span class="muted" style="font-size:12px;">Heatmap</span>
+      </div>
+      <div class="panel-body">
+        <div id="heatmap"></div>
+        <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:var(--muted);">
+          <span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>23:00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="span-4">
+    <div class="panel">
+      <div class="panel-head"><h3>Топ-10 IP-адрес</h3></div>
+      <div class="panel-body"><div class="chart-box"><canvas id="ch-top-ips"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+{% if reports %}
+<h2 class="section-title-rule">Збережені звіти</h2>
+<div class="panel">
+  <div class="panel-body flush">
+    <table class="tbl">
+      <thead><tr><th>Назва</th><th>Створено</th><th></th></tr></thead>
+      <tbody>
+      {% for r in reports %}
+        <tr>
+          <td>{{ r.title }}</td>
+          <td class="muted">{{ r.created_at|date:"d M Y, H:i" }}</td>
+          <td><a href="{{ r.get_absolute_url }}">Переглянути →</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<script>
+function runAiAnalysis() {
+  var btn = document.getElementById('ai-btn');
+  var panel = document.getElementById('ai-panel');
+  var result = document.getElementById('ai-result');
+  btn.textContent = 'Аналізую...';
+  btn.disabled = true;
+  panel.style.display = 'block';
+  result.textContent = 'Зачекайте, ШІ аналізує дані...';
+  fetch('/logs/{{ log_file.pk }}/ai-analyze/')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      result.textContent = d.analysis;
+      btn.textContent = 'AI-аналіз';
+      btn.disabled = false;
+    })
+    .catch(function(e){
+      result.textContent = 'Помилка: ' + e;
+      btn.textContent = 'AI-аналіз';
+      btn.disabled = false;
+    });
+}
+</script>
+
+<script>
+whenChartsReady(function() {
+  const logId = {{ log_file.pk }};
+  const charts = {};
+
+  function getFilters() {
+    const fd = new FormData(document.getElementById('filters'));
+    const params = new URLSearchParams();
+    for (const [k, v] of fd) if (v && v !== 'all') params.append(k, v);
+    return params;
+  }
+
+  async function fetchJSON(path, extra = '') {
+    const params = getFilters();
+    if (extra) extra.split('&').forEach(p => { const [k,v] = p.split('='); params.set(k,v); });
+    const url = `/logs/${logId}/${path}/${params.toString() ? '?' + params : ''}`;
+    const r = await fetch(url);
+    return r.json();
+  }
+
+  function destroy(key) { if (charts[key]) { charts[key].destroy(); delete charts[key]; } }
+
+  function freq() { return document.querySelector('[name=freq]').value; }
+
+  // === Status over time (stacked area) ===
+  async function renderStatusTime() {
+    destroy('statusTime');
+    const d = await fetchJSON('status-timeseries', `freq=${freq()}`);
+    const ctx = document.getElementById('ch-status-time');
+    charts.statusTime = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: d.labels,
+        datasets: ['2xx','3xx','4xx','5xx'].map(cls => ({
+          label: cls,
+          data: d.series[cls] || [],
+          backgroundColor: STATUS_COLORS[cls] + 'aa',
+          borderColor: STATUS_COLORS[cls],
+          fill: true,
+          stack: 'a',
+          tension: 0,
+          pointRadius: 0,
+        })),
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 12, autoSkip: true } },
+          y: { stacked: true, grid: { color: css('--line') }, beginAtZero: true },
+        },
+        plugins: { legend: { position: 'top', align: 'end' } },
+        interaction: { mode: 'index', intersect: false },
+      },
+    });
+  }
+
+  // === Status pie ===
+  async function renderStatusPie() {
+    destroy('statusPie');
+    const d = await fetchJSON('aggregate', 'group_by=status_class');
+    const ctx = document.getElementById('ch-status-pie');
+    charts.statusPie = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: d.labels,
+        datasets: [{
+          data: d.data,
+          backgroundColor: d.labels.map(l => STATUS_COLORS[l] || css('--c3')),
+          borderWidth: 2,
+          borderColor: '#fff',
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        cutout: '60%',
+        plugins: { legend: { position: 'bottom' } },
+      },
+    });
+  }
+
+  // === Aggregate (selectable group_by) ===
+  async function renderAggregate() {
+    destroy('agg');
+    const gb = document.getElementById('group-by').value;
+    const d = await fetchJSON('aggregate', `group_by=${gb}`);
+    document.getElementById('filter-status').textContent =
+      `Записів після фільтрації: ${(d.filtered_count ?? 0).toLocaleString()}`;
+    const ctx = document.getElementById('ch-aggregate');
+    charts.agg = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: d.labels,
+        datasets: [{
+          data: d.data,
+          backgroundColor: PALETTE[0],
+          borderRadius: 0,
+          barPercentage: 0.85,
+          categoryPercentage: 0.92,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        indexAxis: d.labels.length > 6 ? 'y' : 'x',
+        scales: {
+          x: { grid: { display: false } },
+          y: { grid: { color: css('--line') }, beginAtZero: true },
+        },
+        plugins: { legend: { display: false } },
+      },
+    });
+  }
+
+  // === Histogram ===
+  async function renderHistogram() {
+    destroy('hist');
+    const d = await fetchJSON('histogram');
+    const ctx = document.getElementById('ch-histogram');
+    charts.hist = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: d.labels,
+        datasets: [{ data: d.data, backgroundColor: PALETTE[3], borderRadius: 0 }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+          y: { grid: { color: css('--line') }, beginAtZero: true },
+        },
+        plugins: { legend: { display: false } },
+      },
+    });
+  }
+
+  // === Top IPs ===
+  async function renderTopIPs() {
+    destroy('ips');
+    const d = await fetchJSON('top-ips');
+    const ctx = document.getElementById('ch-top-ips');
+    charts.ips = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: d.labels,
+        datasets: [{ data: d.data, backgroundColor: PALETTE[1], borderRadius: 0 }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        indexAxis: 'y',
+        scales: {
+          x: { grid: { color: css('--line') }, beginAtZero: true },
+          y: { grid: { display: false }, ticks: { font: { family: "'IBM Plex Mono'", size: 10 } } },
+        },
+        plugins: { legend: { display: false } },
+      },
+    });
+  }
+
+  // === Anomalies ===
+  async function renderAnomalies() {
+    destroy('anom');
+    const window_ = document.getElementById('anomaly-window').value;
+    const threshold = document.getElementById('anomaly-threshold').value;
+    const d = await fetchJSON('anomalies', `window=${window_}&threshold=${threshold}`);
+    document.getElementById('anomaly-count').textContent = d.spikes.length;
+    const ctx = document.getElementById('ch-anomalies');
+    charts.anom = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: d.timeline.labels,
+        datasets: [
+          {
+            label: 'Доля 5xx',
+            data: d.timeline.data,
+            borderColor: STATUS_COLORS['5xx'],
+            backgroundColor: STATUS_COLORS['5xx'] + '22',
+            fill: true,
+            tension: 0.2,
+          },
+          {
+            label: `Поріг ${(d.threshold * 100).toFixed(0)}%`,
+            data: d.timeline.labels.map(() => d.threshold),
+            borderColor: css('--ink-2'),
+            borderDash: [4, 4],
+            fill: false,
+            pointRadius: 0,
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 8, autoSkip: true } },
+          y: { grid: { color: css('--line') }, min: 0, max: 1,
+               ticks: { callback: v => (v * 100).toFixed(0) + '%' } },
+        },
+        plugins: { legend: { position: 'top', align: 'end' } },
+        interaction: { mode: 'index', intersect: false },
+      },
+    });
+  }
+
+  // === Heatmap (custom CSS-grid) ===
+  function colorScale(v, max) {
+    if (max === 0 || !v) return 'var(--surface-2)';
+    const ratio = v / max;
+    // Інтерполюємо від білого до акценту через бежевий
+    const stops = [
+      [0.0, [245,245,244]],   // surface-2
+      [0.25,[214,206,184]],
+      [0.5, [161,98,7]],      // c5
+      [0.75,[76,80,120]],
+      [1.0, [30,58,95]],      // accent
+    ];
+    let from = stops[0], to = stops[stops.length-1];
+    for (let i = 0; i < stops.length - 1; i++) {
+      if (ratio >= stops[i][0] && ratio <= stops[i+1][0]) { from = stops[i]; to = stops[i+1]; break; }
+    }
+    const t = (ratio - from[0]) / (to[0] - from[0] || 1);
+    const c = from[1].map((c0, i) => Math.round(c0 + (to[1][i] - c0) * t));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+
+  async function renderHeatmap() {
+    const d = await fetchJSON('heatmap');
+    const wrap = document.getElementById('heatmap');
+    wrap.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'heatmap';
+    // Хедер з годинами
+    const corner = document.createElement('div'); corner.className = 'w-label'; grid.appendChild(corner);
+    for (let h = 0; h < 24; h++) {
+      const c = document.createElement('div');
+      c.className = 'h-label';
+      c.textContent = h % 3 === 0 ? h : '';
+      grid.appendChild(c);
+    }
+    // Рядки
+    for (let r = 0; r < 7; r++) {
+      const lbl = document.createElement('div');
+      lbl.className = 'w-label';
+      lbl.textContent = d.weekdays[r];
+      grid.appendChild(lbl);
+      for (let h = 0; h < 24; h++) {
+        const v = d.matrix[r][h];
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.style.background = colorScale(v, d.max);
+        cell.textContent = v;
+        cell.title = `${d.weekdays[r]} ${h}:00 — ${v} запитів`;
+        grid.appendChild(cell);
+      }
+    }
+    wrap.appendChild(grid);
+  }
+
+  // === Master refresh ===
+  function refreshAll() {
+    renderStatusTime();
+    renderStatusPie();
+    renderAggregate();
+    renderHistogram();
+    renderTopIPs();
+    renderAnomalies();
+    renderHeatmap();
+  }
+
+  document.getElementById('filters').addEventListener('submit', e => { e.preventDefault(); refreshAll(); });
+  document.getElementById('reset-filters').addEventListener('click', () => {
+    document.getElementById('filters').reset();
+    refreshAll();
+  });
+  document.getElementById('group-by').addEventListener('change', renderAggregate);
+  document.getElementById('anomaly-window').addEventListener('change', renderAnomalies);
+  document.getElementById('anomaly-threshold').addEventListener('change', renderAnomalies);
+
+  refreshAll();
+});
+</script>
+
+{% endblock %}

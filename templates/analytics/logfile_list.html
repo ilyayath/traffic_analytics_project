@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>Лог-файли</h1>
+    <div class="meta">Усі завантажені файли</div>
+  </div>
+  <div class="actions">
+    <a href="{% url 'analytics:upload' %}" class="btn btn-primary">+ Новий</a>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-body flush">
+    <table class="tbl">
+      <thead><tr>
+        <th>Назва</th><th>Статус</th>
+        <th style="text-align:right;">Розпарсено</th>
+        <th style="text-align:right;">Всього</th>
+        <th>Завантажено</th><th></th>
+      </tr></thead>
+      <tbody>
+      {% for lf in log_files %}
+        <tr>
+          <td><strong>{{ lf.name }}</strong></td>
+          <td>
+            {% if lf.status == 'done' %}<span class="badge badge-ok">{{ lf.get_status_display }}</span>
+            {% elif lf.status == 'error' %}<span class="badge badge-err">{{ lf.get_status_display }}</span>
+            {% else %}<span class="badge badge-mute">{{ lf.get_status_display }}</span>{% endif %}
+          </td>
+          <td class="num">{{ lf.parsed_lines }}</td>
+          <td class="num muted">{{ lf.total_lines }}</td>
+          <td class="muted">{{ lf.uploaded_at|date:"d M Y, H:i" }}</td>
+          <td><a href="{{ lf.get_absolute_url }}">Відкрити →</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" style="padding:32px; text-align:center;" class="muted">Файлів ще немає.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,83 @@
+{# Composite-шаблон секції: рекурсивно include себе для дочірніх секцій #}
+<div class="section">
+  <div class="section-head">
+    <h3>{{ section.title }}</h3>
+    <span class="section-type">{{ section.get_section_type_display }}</span>
+  </div>
+  <div class="section-body">
+
+    {% if section.section_type == 'metric' %}
+      <div class="metric-leaf">
+        <span class="mv num">{{ section.payload.value }}</span>
+        <span class="mu">{{ section.payload.unit }}</span>
+      </div>
+
+    {% elif section.section_type == 'chart' %}
+      <div class="chart-box"><canvas id="chart-{{ section.id }}"></canvas></div>
+      {{ section.payload|json_script:section.payload_dom_id }}
+      <script>
+      // Чекаємо поки Chart.defaults і PALETTE будуть готові
+      whenChartsReady(function() {
+        var data = JSON.parse(document.getElementById("{{ section.payload_dom_id }}").textContent);
+        var kind = "{{ section.chart_kind|default:'bar' }}";
+        var isCircular = kind === 'pie' || kind === 'doughnut';
+        var isLine = kind === 'line';
+
+        var dataset = {
+          label: "{{ section.title|escapejs }}",
+          data: data.data
+        };
+        if (isLine) {
+          dataset.backgroundColor = PALETTE[0] + '22';
+          dataset.borderColor = PALETTE[0];
+          dataset.fill = true;
+          dataset.tension = 0.25;
+        } else if (isCircular) {
+          dataset.backgroundColor = data.labels.map(function(_, i){ return PALETTE[i % PALETTE.length]; });
+          dataset.borderColor = '#fff';
+          dataset.borderWidth = 2;
+        } else {
+          dataset.backgroundColor = PALETTE[0];
+          dataset.borderRadius = 0;
+        }
+
+        new Chart(document.getElementById("chart-{{ section.id }}"), {
+          type: kind,
+          data: { labels: data.labels, datasets: [dataset] },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: isCircular ? {} : {
+              x: { grid: { display: false }, ticks: { maxTicksLimit: 12, autoSkip: true } },
+              y: { grid: { color: css('--line') }, beginAtZero: true }
+            },
+            plugins: {
+              legend: { display: isCircular, position: 'bottom' }
+            }
+          }
+        });
+      });
+      </script>
+
+    {% elif section.section_type == 'table' %}
+      <table class="tbl">
+        <thead><tr>{% for h in section.payload.headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in section.payload.rows %}
+            <tr>{% for cell in row %}<td{% if forloop.counter > 1 %} class="num"{% endif %}>{{ cell }}</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
+    {% with children=section.children.all %}
+      {% if children %}
+        <div style="margin-top:12px;">
+          {% for child in children %}
+            {% include "components/section.html" with section=child %}
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+  </div>
+</div>

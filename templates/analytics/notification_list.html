@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>Сповіщення</h1>
+    <div class="meta">Журнал подій Observer Pattern</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-body flush">
+    {% if notifications %}
+    <table class="tbl">
+      <thead><tr><th>Тип</th><th>Тема</th><th>Файл</th><th>Час</th></tr></thead>
+      <tbody>
+        {% for n in notifications %}
+          <tr>
+            <td>
+              {% if n.kind == 'anomaly' %}<span class="badge badge-warn">{{ n.get_kind_display }}</span>
+              {% elif n.kind == 'upload_failed' %}<span class="badge badge-err">{{ n.get_kind_display }}</span>
+              {% else %}<span class="badge badge-info">{{ n.get_kind_display }}</span>{% endif %}
+            </td>
+            <td>{{ n.subject }}</td>
+            <td class="muted">{{ n.log_file.name|default:"—" }}</td>
+            <td class="muted num">{{ n.created_at|date:"d M Y, H:i" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div style="padding:32px; text-align:center;" class="muted">Сповіщень ще немає.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

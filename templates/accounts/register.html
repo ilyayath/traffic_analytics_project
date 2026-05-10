@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-head">
+  <div><h1>Реєстрація</h1></div>
+</div>
+
+<div class="panel" style="max-width:420px;">
+  <div class="panel-body">
+    <form method="post" style="display:flex; flex-direction:column; gap:12px;">
+      {% csrf_token %}
+      {% for field in form %}
+        <div class="field">
+          <label>{{ field.label }}</label>
+          <input type="{{ field.field.widget.input_type|default:'text' }}"
+                 name="{{ field.html_name }}"
+                 value="{{ field.value|default:'' }}"
+                 {% if field.field.required %}required{% endif %}>
+          {% if field.errors %}
+            <div style="color:var(--danger); font-size:12px;">{{ field.errors.0 }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+      <button type="submit" class="btn btn-primary">Зареєструватись</button>
+    </form>
+    <div style="margin-top:16px; font-size:13px;" class="muted">
+      Вже є акаунт? <a href="{% url 'accounts:login' %}">Увійти</a>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

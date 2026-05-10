@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>{{ report.title }}</h1>
+    <div class="meta">{{ report.description }} · {{ report.created_at|date:"d M Y, H:i" }}</div>
+  </div>
+  <div class="actions">
+    <a href="{{ report.log_file.get_absolute_url }}" class="btn">← До файлу</a>
+  </div>
+</div>
+
+<div class="composite-tree">
+  {% for section in root_sections %}
+    {% include "components/section.html" with section=section %}
+  {% endfor %}
+</div>
+
+{% endblock %}
