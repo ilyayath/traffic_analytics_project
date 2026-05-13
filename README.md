@@ -89,7 +89,7 @@ facade.export_excel(log_file)                         # Excel-звіт із 4 в
 
 ### Observer
 Власний сигнал `log_file_processed` має двох підписників:
-1. `notify_admin_email` — email-сповіщення (як у методичці)
+1. `notify_admin_email` — email-сповіщення 
 2. `detect_traffic_anomalies` — окремий незалежний обсерватор
 
 ### Composite
