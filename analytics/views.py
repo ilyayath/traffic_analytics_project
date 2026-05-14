@@ -23,12 +23,12 @@ class UploadForm(forms.Form):
 
 @login_required
 def dashboard(request):
-    """Головна сторінка — список файлів + останні сповіщення."""
+    user_files = LogFile.objects.filter(user=request.user)
     return render(request, "analytics/dashboard.html", {
-        "log_files": LogFile.objects.all()[:10],
-        "notifications": Notification.objects.all()[:5],
-        "total_files": LogFile.objects.count(),
-        "total_reports": Report.objects.count(),
+        "log_files": user_files[:10],
+        "notifications": Notification.objects.filter(log_file__user=request.user)[:5],
+        "total_files": user_files.count(),
+        "total_reports": Report.objects.filter(log_file__user=request.user).count(),
     })
 
 
@@ -43,6 +43,8 @@ def upload_log(request):
             name = form.cleaned_data["name"] or f.name
             try:
                 log_file = facade.upload_and_process(f, name=name)
+                log_file.user = request.user
+                log_file.save(update_fields=["user"])
                 messages.success(
                     request,
                     f"Файл '{log_file.name}' оброблено: "
@@ -59,13 +61,13 @@ def upload_log(request):
 @login_required
 def logfile_list(request):
     return render(request, "analytics/logfile_list.html", {
-        "log_files": LogFile.objects.all(),
+        "log_files": LogFile.objects.filter(user=request.user),
     })
 
 
 @login_required
 def logfile_detail(request, pk):
-    log_file = get_object_or_404(LogFile, pk=pk)
+    log_file = get_object_or_404(LogFile, pk=pk, user=request.user)
     overview = facade.get_overview(log_file)
     return render(request, "analytics/logfile_detail.html", {
         "log_file": log_file,
@@ -78,7 +80,7 @@ def logfile_detail(request, pk):
 @login_required
 @require_http_methods(["POST"])
 def build_report(request, pk):
-    log_file = get_object_or_404(LogFile, pk=pk)
+    log_file = get_object_or_404(LogFile, pk=pk, user=request.user)  # ← додай user
     report = facade.build_report(log_file)
     messages.success(request, f"Створено звіт: {report.title}")
     return redirect(report.get_absolute_url())
@@ -86,7 +88,7 @@ def build_report(request, pk):
 
 @login_required
 def report_detail(request, pk):
-    report = get_object_or_404(Report, pk=pk)
+    report = get_object_or_404(Report, pk=pk, log_file__user=request.user)
     return render(request, "analytics/report_detail.html", {
         "report": report,
         "root_sections": report.root_sections,
@@ -95,8 +97,7 @@ def report_detail(request, pk):
 
 @login_required
 def chart_data(request, pk, kind):
-    """JSON-endpoint для динамічного оновлення графіків."""
-    log_file = get_object_or_404(LogFile, pk=pk)
+    log_file = get_object_or_404(LogFile, pk=pk, user=request.user)  # ← додай user
     try:
         data = facade.get_chart_data(log_file, kind)
     except ValueError as exc:
@@ -107,7 +108,7 @@ def chart_data(request, pk, kind):
 @login_required
 def notification_list(request):
     return render(request, "analytics/notification_list.html", {
-        "notifications": Notification.objects.all(),
+        "notifications": Notification.objects.filter(log_file__user=request.user),
     })
 
 
@@ -125,8 +126,7 @@ def _extract_filters(request) -> dict:
 
 @login_required
 def export_excel(request, pk):
-    """Завантажити Excel-звіт."""
-    log_file = get_object_or_404(LogFile, pk=pk)
+    log_file = get_object_or_404(LogFile, pk=pk, user=request.user)  # ← додай user
     data = facade.export_excel(log_file)
     response = HttpResponse(
         data,
@@ -141,18 +141,18 @@ def export_excel(request, pk):
     return response
 
 
+@login_required
 def resample_data(request, pk):
-    """JSON-ендпоінт для time-series resample. ?freq=1h"""
-    log_file = get_object_or_404(LogFile, pk=pk)
+    log_file = get_object_or_404(LogFile, pk=pk, user=request.user)  # ← додай user
     freq = request.GET.get("freq", "1h")
     return JsonResponse(
         facade.resample_traffic(log_file, freq=freq, filters=_extract_filters(request))
     )
 
 
+@login_required
 def rolling_anomalies(request, pk):
-    """JSON-ендпоінт для rolling anomaly detection."""
-    log_file = get_object_or_404(LogFile, pk=pk)
+    log_file = get_object_or_404(LogFile, pk=pk, user=request.user)  # ← додай user
     window = request.GET.get("window", "10min")
     try:
         threshold = float(request.GET.get("threshold", "0.1"))
@@ -163,39 +163,43 @@ def rolling_anomalies(request, pk):
     )
 
 
+@login_required
 def aggregate_data(request, pk):
-    """Універсальна агрегація з фільтрами. ?group_by=browser&status_class=2xx&method=GET"""
-    log_file = get_object_or_404(LogFile, pk=pk)
+    log_file = get_object_or_404(LogFile, pk=pk, user=request.user)  # ← додай user
     group_by = request.GET.get("group_by", "method")
     return JsonResponse(
         facade.aggregate(log_file, group_by=group_by, filters=_extract_filters(request))
     )
 
 
+@login_required
 def status_timeseries(request, pk):
-    log_file = get_object_or_404(LogFile, pk=pk)
+    log_file = get_object_or_404(LogFile, pk=pk, user=request.user)  # ← додай user
     freq = request.GET.get("freq", "1h")
     return JsonResponse(
         facade.status_over_time(log_file, freq=freq, filters=_extract_filters(request))
     )
 
 
+@login_required
 def heatmap_data(request, pk):
-    log_file = get_object_or_404(LogFile, pk=pk)
+    log_file = get_object_or_404(LogFile, pk=pk, user=request.user)  # ← додай user
     return JsonResponse(
         facade.hour_weekday_heatmap(log_file, filters=_extract_filters(request))
     )
 
 
+@login_required
 def histogram_data(request, pk):
-    log_file = get_object_or_404(LogFile, pk=pk)
+    log_file = get_object_or_404(LogFile, pk=pk, user=request.user)  # ← додай user
     return JsonResponse(
         facade.response_size_histogram(log_file, filters=_extract_filters(request))
     )
 
 
+@login_required
 def top_ips_data(request, pk):
-    log_file = get_object_or_404(LogFile, pk=pk)
+    log_file = get_object_or_404(LogFile, pk=pk, user=request.user)  # ← додай user
     return JsonResponse(
         facade.top_ips(log_file, filters=_extract_filters(request))
     )
@@ -203,7 +207,9 @@ def top_ips_data(request, pk):
 
 @login_required
 def ai_analyze(request, pk):
-    """Ендпоінт для AI-аналізу лог-файлу."""
-    log_file = get_object_or_404(LogFile, pk=pk)
-    analysis = facade.ai_analyze(log_file)
+    log_file = get_object_or_404(LogFile, pk=pk, user=request.user)
+    try:
+        analysis = facade.ai_analyze(log_file)
+    except Exception as exc:
+        analysis = f"Помилка аналізу: {exc}"
     return JsonResponse({"analysis": analysis})

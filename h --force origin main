@@ -1,0 +1,15 @@
+[33m14d4c7c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Add sample log generator command and demo data
+[33m9f48601[m Add Docker deployment: Gunicorn + PostgreSQL + Nginx via docker-compose
+[33m8ffbdb9[m Add GitHub Actions CI: test on Python 3.11 and 3.12 with coverage
+[33m7a64518[m Add 38 unit tests covering models, parser, facade, composite, observer, views, pandas
+[33m2a9faa8[m Add authentication: registration, login, login_required on all views
+[33m2bf5972[m Add AI integration: log analysis via Anthropic Claude API with fallback
+[33m1e8f329[m Add pandas analytics: resample, rolling anomalies, heatmap, Excel export
+[33mcbd87e8[m Add templates with strict analytical design system and Chart.js integration
+[33m4a6de82[m Add views and URL routing, all business logic delegated to facade
+[33m85f317a[m Implement Composite pattern: ReportComponent, LeafSection, CompositeSection
+[33m44a8c0a[m Implement Observer pattern: Django signals for email notifications and anomaly detection
+[33m8c627c7[m Implement Facade pattern: TrafficAnalyticsFacade with internal services
+[33md4ffd87[m Implement Combined Log Format parser with user-agent detection
+[33m16e2aac[m Add analytics models: LogFile, LogEntry, Report, ReportSection, Notification
+[33mca9c412[m[33m ([m[1;31morigin/main[m[33m)[m Init Django project with settings and env config

@@ -318,7 +318,10 @@ window.whenChartsReady = function(cb) {
       <a href="{% url 'analytics:upload' %}">Завантажити</a>
       <a href="{% url 'analytics:notification_list' %}">Сповіщення</a>
       <span style="color:var(--muted); font-size:12px; padding:4px 0;">{{ user.username }}</span>
-      <a href="{% url 'accounts:logout' %}">Вийти</a>
+      <form method="post" action="{% url 'accounts:logout' %}" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn-ghost" style="cursor:pointer; font-size:13px; font-family:var(--font-body); color:var(--ink-2); background:none; border:none; padding:4px 0;">Вийти</button>
+      </form>
       {% else %}
       <a href="{% url 'accounts:login' %}">Увійти</a>
       <a href="{% url 'accounts:register' %}">Реєстрація</a>

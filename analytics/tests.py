@@ -205,9 +205,12 @@ class ViewsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(LogFile.objects.exists())
 
+
     def test_chart_data_endpoint(self):
         facade = TrafficAnalyticsFacade()
         lf = facade.upload_and_process(make_log_file(), name="t.log")
+        lf.user = self.user
+        lf.save(update_fields=["user"])
         response = self.client.get(
             reverse("analytics:chart_data", args=[lf.pk, "status"])
         )
@@ -227,6 +230,8 @@ class PandasServiceTest(TestCase):
         self.facade = TrafficAnalyticsFacade()
         self.service = PandasAnalyticsService()
         self.lf = self.facade.upload_and_process(make_log_file(), name="t.log")
+        self.lf.user = self.user
+        self.lf.save(update_fields=["user"])
 
     def test_to_dataframe_returns_records(self):
         df = self.service.to_dataframe(self.lf)

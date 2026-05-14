@@ -8,7 +8,7 @@ ReportSection — секція звіту (рекурсивна, реалізу�
 """
 from django.db import models
 from django.urls import reverse
-
+from django.conf import settings
 
 class LogFile(models.Model):
     """Завантажений користувачем лог-файл."""
@@ -19,7 +19,13 @@ class LogFile(models.Model):
         ("done", "Оброблено"),
         ("error", "Помилка"),
     ]
-
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="log_files",
+        verbose_name="Користувач",
+        null=True,
+    )
     name = models.CharField(max_length=255, verbose_name="Назва")
     file = models.FileField(upload_to="logs/", verbose_name="Файл")
     uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="Завантажено")
