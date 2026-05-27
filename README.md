@@ -172,6 +172,3 @@ coverage report -m
 - Секрети у `.env` (у `.gitignore`), `.env.example` з плейсхолдерами
 - При `DEBUG=False`: HTTPS redirect, secure cookies, `X_FRAME_OPTIONS=DENY`
 
-## Ліцензія
-
-MIT
